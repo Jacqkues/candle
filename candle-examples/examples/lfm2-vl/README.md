@@ -30,7 +30,8 @@ On macOS with Metal, add `--features metal`; with CUDA, `--features cuda`.
 
 ## Notes
 
-- Images are resized with the `image` crate, whose filters differ slightly from the
-  torchvision resize used by `transformers`. With the same pixel values, the logits match
-  `transformers` to about `1e-4`, but long generations can differ by a few words.
+- Images are resized exactly like the torchvision resize used by `transformers`
+  (`candle_examples::resize`), so the logits match `transformers` to about `1e-4`. JPEG
+  files can still decode to slightly different pixels than with PIL, which can change a few
+  words of long generations.
 - Decoding is greedy by default; use `--temperature` and `--top-p` to sample.

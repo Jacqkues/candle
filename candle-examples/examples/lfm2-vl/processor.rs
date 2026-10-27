@@ -5,7 +5,7 @@
 //! padded patches, and building the image tokens of the prompt.
 
 use candle::{DType, Device, Result, Tensor};
-use image::imageops::FilterType;
+use candle_examples::resize::{resize, Resample};
 use image::RgbImage;
 
 /// Preprocessing settings, as found in `preprocessor_config.json`, or under `image_processor`
@@ -220,21 +220,18 @@ impl Lfm2VlProcessorConfig {
         text
     }
 
-    /// Resizes an image to a `(3, height, width)` u8 tensor.
-    ///
-    /// transformers resizes with torchvision (antialiased); the filters of the `image` crate
-    /// are close but not identical, so pixels can differ by a few levels. This is enough to
-    /// change some words of long generations, but not the quality of the output.
-    pub fn resize(&self, image: &RgbImage, (height, width): (usize, usize)) -> Result<Tensor> {
-        let filter = match self.resample {
-            2 => FilterType::Triangle,
-            3 => FilterType::CatmullRom,
-            r => candle::bail!(
-                "unsupported resample filter {r}, expected 2 (bilinear) or 3 (bicubic)"
-            ),
-        };
-        let resized = image::imageops::resize(image, width as u32, height as u32, filter);
-        Tensor::from_vec(resized.into_raw(), (height, width, 3), &Device::Cpu)?.permute((2, 0, 1))
+    /// Resizes an image to a `(3, height, width)` u8 tensor, exactly like the torchvision
+    /// resize used by transformers.
+    pub fn resize(&self, image: &RgbImage, size: (usize, usize)) -> Result<Tensor> {
+        let (width, height) = image.dimensions();
+        let image = Tensor::from_raw_buffer(
+            image.as_raw(),
+            DType::U8,
+            &[height as usize, width as usize, 3],
+            &Device::Cpu,
+        )?
+        .permute((2, 0, 1))?;
+        resize(&image, size, Resample::from_pil(self.resample)?)
     }
 
     /// Resizes and cuts an image as `layout` says: the tiles row by row, then the thumbnail,
